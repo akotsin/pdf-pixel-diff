@@ -2,7 +2,7 @@
 
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org/)
-[![ESM-only](https://img.shields.io/badge/Module-ESM--only-purple.svg)](https://nodejs.org/api/esm.html)
+[![Module](https://img.shields.io/badge/Module-ESM%20%2B%20CJS-purple.svg)](https://nodejs.org/api/packages.html#conditional-exports)
 [![node-poppler](https://img.shields.io/badge/node--poppler-9.1.1-brightgreen.svg)](https://www.npmjs.com/package/node-poppler)
 [![sharp](https://img.shields.io/badge/sharp-0.34.5-brightgreen.svg)](https://www.npmjs.com/package/sharp)
 [![pixelmatch](https://img.shields.io/badge/pixelmatch-7.1.0-brightgreen.svg)](https://www.npmjs.com/package/pixelmatch)
@@ -131,18 +131,20 @@ Notes:
 
 Install Poppler and make sure its binaries are on your `PATH` (see [Prerequisites](#prerequisites)).
 
-### `ERR_REQUIRE_ESM` / `require()` does not work
+### ESM / CommonJS usage
 
-This package is **ESM-only**. Use:
+This package supports both ESM and CommonJS.
+
+ESM:
 
 ```js
 import { compareFiles } from 'pdf-pixel-diff';
 ```
 
-If you must use CommonJS, load via dynamic import:
+CommonJS:
 
 ```js
-const { compareFiles } = await import('pdf-pixel-diff');
+const { compareFiles } = require('pdf-pixel-diff');
 ```
 
 ### “Images must have the same dimensions”
@@ -160,32 +162,6 @@ Diff images are only written when a page differs. Check:
 - `result.differentPages`
 - `compare.excludedPages`
 - `result.error`
-
-### Sourcemaps / stack traces
-
-The published build includes `dist/index.js.map`. In Node, enable sourcemapped stack traces:
-
-```bash
-node --enable-source-maps your-script.mjs
-```
-
-## Contributing
-
-Before committing changes, run:
-
-```bash
-# Build
-npm run build
-
-# TypeScript type check
-npm run typescript:check
-
-# Lint
-npm run eslint:check
-
-# Lint and fix
-npm run eslint:fix
-```
 
 ## Key Features
 

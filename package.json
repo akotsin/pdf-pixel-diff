@@ -2,6 +2,8 @@
   "name": "pdf-pixel-diff",
   "version": "1.0.0",
   "type": "module",
+  "main": "./dist/index.cjs",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup",
     "typescript:check": "tsc --noEmit",
@@ -17,12 +19,16 @@
   "files": [
     "dist"
   ],
-  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "keywords": [

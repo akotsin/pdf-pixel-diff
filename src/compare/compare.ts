@@ -1,7 +1,23 @@
 import path from 'node:path';
 import sharp from 'sharp';
-import pixelmatch from 'pixelmatch';
 import { Directory } from '../directory/directory';
+
+/**
+ * `pixelmatch` is ESM-only, so it can't be loaded via `require()` from CommonJS.
+ * To keep this package dual (ESM + CJS), we load `pixelmatch` via dynamic `import()`.
+ */
+type PixelmatchModule = typeof import('pixelmatch');
+
+let pixelmatchModulePromise: Promise<PixelmatchModule> | undefined;
+
+async function getPixelmatch (): Promise<PixelmatchModule['default']> {
+  if (!pixelmatchModulePromise) {
+    pixelmatchModulePromise = import('pixelmatch');
+  }
+
+  const m = await pixelmatchModulePromise;
+  return m.default;
+}
 
 const DEFAULT_THRESHOLD = 0.1;
 const DEFAULT_INCLUDE_AA = false;
@@ -110,6 +126,8 @@ export class Compare {
     diffImagePath: string,
     options?: CompareOptions,
   ): Promise<boolean> {
+    const pixelmatch = await getPixelmatch();
+
     const baselineRaw = await sharp(baseline)
       .ensureAlpha()
       .raw()
