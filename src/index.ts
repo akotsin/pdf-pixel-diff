@@ -7,7 +7,14 @@ import {
   Compare,
   CompareResult,
   CompareOptions,
+  Mask,
 } from './compare/compare';
+
+export type {
+  RenderOptions,
+  CompareOptions,
+  Mask,
+};
 
 export type Options = {
   resultDir?: string;

@@ -22,7 +22,7 @@ async function getPixelmatch (): Promise<PixelmatchModule['default']> {
 const DEFAULT_THRESHOLD = 0.1;
 const DEFAULT_INCLUDE_AA = false;
 
-type Mask = {
+export type Mask = {
   pageNumber: number;
   color?: 'black' | 'transparent';
   x0: number;
