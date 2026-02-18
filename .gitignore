@@ -1,0 +1,14 @@
+# IDEA
+.idea/
+*.iml
+.cursorignore/
+.vscode/
+
+# Dependency directories
+node_modules/
+
+# Compiled TS directory
+dist/
+
+# Test directories
+assets/
