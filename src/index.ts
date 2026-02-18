@@ -1,4 +1,4 @@
-import { Directory } from './directory/directory.js';
+import { Directory } from './directory/directory';
 import {
   Render,
   RenderOptions,

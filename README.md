@@ -43,61 +43,67 @@ sudo apt-get update && sudo apt-get install -y poppler-utils
 npm install pdf-pixel-diff
 ```
 
-## Usage
-
-```js
-import path from 'node:path';
-import { compareFiles } from 'pdf-pixel-diff';
-
-const baselineFilePath = path.join(process.cwd(), 'baseline.pdf');
-const actualFilePath = path.join(process.cwd(), 'actual.pdf');
-
-const result = await compareFiles(baselineFilePath, actualFilePath, {
-  resultDir: path.resolve(process.cwd(), 'results'),
-  render: { dpi: 150 },
-  compare: {
-    threshold: 0.1,
-    includeAA: false,
-    combineImages: true,
-    excludedPages: [2], // 1-based page numbers
-    masks: [
-      // pageNumber: 0 => apply to all pages
-      { pageNumber: 0, x0: 100, y0: 1580, x1: 690, y1: 1610, color: 'transparent' },
-    ],
-  },
-});
-
-console.log(result);
-```
-
-## API
-
-### `compareFiles(baselineFile, actualFile, options?)`
-
-- **baselineFile / actualFile**: `string | Buffer`
-  - `string` is treated as a file path
-  - `Buffer` is passed directly to Poppler
-- **options**:
-  - `resultDir?: string` – output directory (default: `<cwd>/pdf-pixel-diff`)
-  - `render?: { dpi?: number }` – render DPI (default: `150`)
-  - `compare?: CompareOptions`
-
-`CompareOptions`:
-
-- `threshold?: number` – pixelmatch threshold (default: `0.1`)
-- `includeAA?: boolean` – include anti-aliased pixels (default: `false`)
-- `combineImages?: boolean` – when `true`, writes a combined image (Baseline | Actual | Difference) for each differing page
-- `excludedPages?: number[]` – **1-based** page numbers to skip
-- `masks?: Array<{ pageNumber: number; x0: number; y0: number; x1: number; y1: number; color?: 'black' | 'transparent' }>`
-  - Coordinates are in **pixel space of the rendered PNG**
-  - `pageNumber: 0` means “apply to all pages”; otherwise it must match the **1-based** page number
-  - `color` controls how the masked rectangle is filled in both images:
-    - `'black'` (default): opaque black (`rgba(0,0,0,1)`)
-    - `'transparent'`: fully transparent (`rgba(0,0,0,0)`)
-
-Return value:
+## Definitions
 
 ```ts
+declare function compareFiles (
+  /** `string` is treated as a file path, `Buffer` is passed directly to Poppler */
+  baselineFile: string | Buffer,
+  /** `string` is treated as a file path, `Buffer` is passed directly to Poppler */
+  actualFile: string | Buffer,
+  options?: {
+    /** output directory (default: `<cwd>/pdf-pixel-diff`) */
+    resultDir?: string;
+
+    /** render options */
+    render?: RenderOptions;
+
+    /** compare options */
+    compare?: CompareOptions;
+  },
+): Promise<CompareFilesResult>;
+
+type RenderOptions = {
+  /** render DPI (default: 150) */
+  dpi?: number;
+};
+
+type CompareOptions = {
+  /** pixelmatch threshold (default: 0.1) */
+  threshold?: number;
+
+  /** include anti-aliased pixels (default: false) */
+  includeAA?: boolean;
+
+  /**
+   * when true, writes a combined image (Baseline | Actual | Difference)
+   * for each differing page (default: false)
+   */
+  combineImages?: boolean;
+
+  /** 1-based page numbers to skip (default: []) */
+  excludedPages?: number[];
+
+  /**
+   * coordinates are in pixel space of the rendered PNG
+   * pageNumber: 0 => apply to all pages, otherwise 1-based page number
+   */
+  masks?: Array<{
+    pageNumber: number;
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+
+    /**
+     * controls how the masked rectangle is filled in both images (default: 'black')
+     * - 'black': R=0, G=0, B=0, A=255
+     * - 'transparent': R=0, G=0, B=0, A=0
+     */
+    color?: 'black' | 'transparent';
+  }>;
+};
+
 type CompareFilesResult = {
   passed: boolean;
   message: string;
@@ -108,6 +114,50 @@ type CompareFilesResult = {
 ```
 
 `compareFiles()` does **not** throw: it catches errors and returns `{ passed: false, message: "...", error }`.
+
+## Usage
+
+```ts
+const filesPath = path.join(
+  process.cwd(),
+  'files',
+);
+
+const baselineFilePath = path.join(
+  filesPath,
+  'baseline.pdf',
+);
+
+const actualFilePath = path.join(
+  filesPath,
+  'actual.pdf',
+);
+
+const result = await compareFiles(baselineFilePath, actualFilePath, {
+  resultDir: filesPath,
+  render: {
+    dpi: 150,
+  },
+  compare: {
+    threshold: 0.1,
+    includeAA: false,
+    combineImages: true,
+    excludedPages: [2],
+    masks: [
+      {
+        pageNumber: 1,
+        color: 'black',
+        x0: 100,
+        y0: 1580,
+        x1: 690,
+        y1: 1610,
+      },
+    ],
+  },
+});
+
+console.log(result);
+```
 
 ## Output
 
