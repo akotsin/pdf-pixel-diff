@@ -45,19 +45,22 @@ declare function compareFiles (
   actualFile: string | Buffer,
   options?: {
     /**
-     * output directory; relative paths are resolved against `cwd`.
-     * default: a new unique directory per call, `<cwd>/pdf-pixel-diff/<ISO timestamp>-<random>`
+     * base output directory; relative paths are resolved against `cwd` (default: `<cwd>/pdf-pixel-diff`).
+     * every call writes into its own new subfolder `<resultDir>/<ISO timestamp>-<random>`
      */
     resultDir?: string;
 
     /**
      * what to keep on disk after the comparison
-     * - 'failed': keep results only when the comparison failed (default when `resultDir` is not set)
-     * - 'all': always keep (default when `resultDir` is set)
+     * - 'failed': keep the run subfolder only when the comparison failed (default)
+     * - 'all': always keep
      * - 'none': always remove
-     * removing deletes the generated directory, or only the `expected/`, `actual/`, `difference/` subfolders of an explicit `resultDir`
+     * only the run subfolder is removed, never `resultDir` itself or other files in it
      */
     keepResults?: 'failed' | 'all' | 'none';
+
+    /** when true, the result includes `pages` with per-page details (default: false) */
+    detailedResult?: boolean;
 
     /** render options */
     render?: RenderOptions;
@@ -148,8 +151,9 @@ type CompareFilesResult = {
   /** pages with status 'different' or 'size-mismatch' */
   differentPages: number[];
   /** one entry per page of the longer document; empty when `error` is set */
-  pages: PageResult[];
-  /** absolute path of the directory used for this call (set unless validation failed before it was chosen) */
+  /** only with `detailedResult: true`: one entry per page of the longer document; empty when `error` is set */
+  pages?: PageResult[];
+  /** name of this call's run subfolder inside `resultDir`, e.g. '2026-10-23T14-31-59-309Z-FTgPX6' (not set when validation failed before it was created) */
   resultDir?: string;
   error?: Error;
 }
@@ -229,25 +233,26 @@ console.log(result);
 
 ### Parallel test runs
 
-Without `resultDir` every call gets its own directory, so parallel calls never collide.
+Every call writes into its own new subfolder of `resultDir`, created atomically (`mkdtemp`),
+so concurrent calls never share files, even with the same `resultDir` and from different processes.
+Diff images of a call are in `<resultDir>/<result.resultDir>/difference/` (with `detailedResult: true` also in `result.pages[].diffImagePath`).
 
-An explicit `resultDir` is locked for the duration of the call (`<resultDir>/.pdf-pixel-diff.lock`).
-A concurrent call with the same `resultDir` (from any process on the machine or the same process) does not wait:
-it returns `error: Result directory "..." is in use by pid N on <host> since <time>`.
-Waiting would not help, because callers usually read the result files after `compareFiles` returns.
-A lock left by a killed process is taken over when its pid is no longer alive on the same host, or after 30 minutes.
-
-Use a separate `resultDir` for each concurrent comparison. With Playwright:
+A readable `resultDir` per test still helps to find results later. With Playwright:
 
 ```ts
 test('budget book PDF', async ({}, testInfo) => {
+  const resultDir = testInfo.outputPath('pdf-diff');
   const result = await compareFiles(expectedPath, actualPath, {
-    resultDir: testInfo.outputPath('pdf-diff'),
+    resultDir,
     compare: { combineImages: true },
   });
 
-  for (const page of result.pages.filter((p) => p.diffImagePath)) {
-    await testInfo.attach(`page ${page.page} (${page.status})`, { path: page.diffImagePath!, contentType: 'image/png' });
+  if (!result.passed && result.resultDir) {
+    const differenceDir = path.join(resultDir, result.resultDir, 'difference');
+
+    for (const file of fs.readdirSync(differenceDir)) {
+      await testInfo.attach(file, { path: path.join(differenceDir, file), contentType: 'image/png' });
+    }
   }
 
   expect(result.error).toBeUndefined();
@@ -257,49 +262,46 @@ test('budget book PDF', async ({}, testInfo) => {
 
 ## Output
 
-`resultDir` gets three subfolders. They are created if missing and **emptied on each run**;
-other files in `resultDir` are not touched. Without `resultDir` a new `<cwd>/pdf-pixel-diff/<ISO timestamp>-<random>`
-directory is created per call and, with the default `keepResults: 'failed'`, removed when the documents are the same.
+Each call creates a run subfolder in `resultDir` (default `<cwd>/pdf-pixel-diff`). Existing files in `resultDir`
+are never touched. With the default `keepResults: 'failed'` the run subfolder is removed when the documents are the same.
 
 ```
 resultDir/
-  expected/    # every rendered expected page: expected-1.png ... (expected-01.png for 10-99 pages)
-  actual/      # every rendered actual page: actual-1.png ...
-  difference/  # only failed pages: difference-3.png ... (combined image when combineImages is true)
+  2026-10-23T13-35-40-027Z-kVfTd2/   # one run, its name = result.resultDir
+    expected/    # every rendered expected page: expected-1.png ... (expected-01.png for 10-99 pages)
+    actual/      # every rendered actual page: actual-1.png ...
+    difference/  # only failed pages: difference-3.png ... (combined image when combineImages is true)
 ```
+
+Run subfolders sort by time. Failed runs accumulate until you delete them (e.g. clean `resultDir` before a test run).
 
 Page numbers in file names are zero-padded: rendered pages to the page count of their own document (Poppler naming),
 diff images to the number of compared pages, i.e. `min(expectedPages, actualPages)`.
-Use `result.pages[].diffImagePath` (absolute) instead of building paths by hand.
+The run folder name is returned in `result.resultDir`, so a call's diff images are `<resultDir>/<result.resultDir>/difference/*.png`.
 
 Notes:
 
 - Only pages up to `min(expectedPages, actualPages)` are compared; the rest are reported as `missing`.
 - If page counts differ, the result is marked as failed.
 - Documents with mixed orientation are supported: each page is rendered at its own size.
-- Parallel comparisons must use different `resultDir` values (see [Parallel test runs](#parallel-test-runs)).
 
 ## Upgrading from 1.x
 
 | 1.x | 2.0 |
 | --- | --- |
 | Pages with different sizes (e.g. changed orientation) returned `error: Images must have the same dimensions` | The page gets status `size-mismatch` and is listed in `differentPages`; no `error` |
-| Without `resultDir` all calls shared `<cwd>/pdf-pixel-diff` | Unique directory per call; returned in `result.resultDir`, removed on pass (`keepResults`) |
-| Concurrent calls with the same `resultDir` silently overwrote each other | The second call returns a lock `error` |
+| Results were written directly into `resultDir` (`resultDir/difference/...`) and overwritten by the next call | Every call writes into a new subfolder `resultDir/<timestamp>-<random>/difference/...`; read them from `<resultDir>/<result.resultDir>/difference/` |
+| Concurrent calls with the same `resultDir` silently overwrote each other | Impossible: each call has its own subfolder |
+| Results were always kept | Removed when the documents are the same (`keepResults: 'failed'`; `'all'` keeps everything) |
 | Invalid options (masks with `x1 <= x0`, non-integer `pageNumber`, `threshold` outside 0–1, ...) were ignored | Returned as `error` before rendering |
 | Combined image of a landscape page was horizontal | Vertical by default (`combineLayout: 'horizontal'` restores 1.x) |
-| `CompareFilesResult` had no per-page data | Required `pages: PageResult[]` (add `pages: []` to hand-written mocks) |
+| `CompareFilesResult` had no per-page data | Optional `pages: PageResult[]` with `detailedResult: true` |
 | "baseline" naming | "expected": folder `expected/` (was `baseline/`), files `expected-N.png`, combined image label `Expected`, `combineLabels.expected`, `PageResult.expectedSize`, first parameter `expectedFile` |
 | `message: 'Documents are different: baseline N pages, actual M pages'` | `'Documents are different: expected N pages, actual M pages'` |
 
-Unchanged: other `message` texts, `passed`, `differentPages`, `actual/` and `difference/` file names.
+Unchanged: other `message` texts, `passed`, `differentPages`, `actual/` and `difference/` file names inside a run folder.
 
 ## Troubleshooting
-
-### “Result directory ... is in use”
-
-Two comparisons ran with the same `resultDir` at the same time. Give each one its own `resultDir`
-(e.g. include the test name or id), or omit `resultDir` to get a unique directory per call.
 
 ### Poppler not found / “Failed to find Poppler binaries”
 
@@ -324,7 +326,8 @@ const { compareFiles } = require('pdf-pixel-diff');
 ### Page reported as `size-mismatch`
 
 Rendered page images differ in width/height. The page fails, but the rest of the document is still compared.
-Both images are padded to a common canvas, so the diff / combined image shows where they differ. Typical causes:
+Both images are padded to a common canvas, so the diff / combined image shows where they differ
+(on the combined image the padding and the separators between panels are gray). Typical causes:
 
 - Changed page orientation or page size
 - Different crop boxes (try `render.useCropBox: true`)
@@ -333,7 +336,7 @@ Both images are padded to a common canvas, so the diff / combined image shows wh
 
 Diff images are only written for pages with status `different` or `size-mismatch`. Check:
 
-- `result.pages` (status and `diffPixels` per page)
+- `result.pages` with `detailedResult: true` (status and `diffPixels` per page)
 - `compare.excludedPages`
 - `result.error`
 

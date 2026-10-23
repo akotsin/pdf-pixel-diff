@@ -23,6 +23,8 @@ const DEFAULT_THRESHOLD = 0.1;
 const DEFAULT_INCLUDE_AA = false;
 const DEFAULT_COMBINE_LAYOUT: CombineLayout = 'auto';
 const SEPARATOR_SIZE = 10;
+// Neutral gray so padding and separators don't compete with page content or look like a black mask.
+const CANVAS_BACKGROUND = { r: 140, g: 140, b: 140 };
 
 const DEFAULT_LABELS: Required<CombineLabelTexts> = {
   expected: 'Expected',
@@ -406,7 +408,7 @@ export class Compare {
         width: vertical ? width : width * 3 + SEPARATOR_SIZE * 2,
         height: vertical ? height * 3 + SEPARATOR_SIZE * 2 : height,
         channels: 3,
-        background: { r: 0, g: 0, b: 0 },
+        background: CANVAS_BACKGROUND,
       },
     })
       .composite(composites)

@@ -1,8 +1,5 @@
-import {
-  Directory,
-  ResultDirectory,
-} from './directory/directory';
-import { ResultLock } from './directory/lock';
+import path from 'node:path';
+import { Directory } from './directory/directory';
 import {
   Render,
   RenderOptions,
@@ -41,11 +38,14 @@ const KEEP_RESULTS: KeepResults[] = ['failed', 'all', 'none'];
 export type Options = {
   resultDir?: string;
   keepResults?: KeepResults;
+  detailedResult?: boolean;
   render?: RenderOptions,
   compare?: CompareOptions,
 };
 
-export type CompareFilesResult = CompareResult & {
+export type CompareFilesResult = Omit<CompareResult, 'pages'> & {
+  /** per-page details, only with `detailedResult: true` */
+  pages?: PageResult[];
   resultDir?: string;
   error?: Error;
 };
@@ -56,6 +56,33 @@ function validateKeepResults (
   if (keepResults !== undefined && !KEEP_RESULTS.includes(keepResults)) {
     throw new Error(`Invalid keepResults: ${String(keepResults)}. Expected one of ${KEEP_RESULTS.join(', ')}`);
   }
+}
+
+function validateDetailedResult (
+  detailedResult: boolean | undefined,
+): void {
+  if (detailedResult !== undefined && typeof detailedResult !== 'boolean') {
+    throw new Error(`Invalid detailedResult: ${String(detailedResult)}. Expected true or false`);
+  }
+}
+
+function withPages (
+  result: CompareResult,
+  detailedResult: boolean | undefined,
+  removed: boolean,
+): CompareFilesResult {
+  const { pages, ...summary } = result;
+
+  if (!detailedResult) {
+    return summary;
+  }
+
+  return {
+    ...summary,
+    pages: removed
+      ? pages.map(({ diffImagePath: _removed, ...page }) => page)
+      : pages,
+  };
 }
 
 function shouldKeep (
@@ -70,69 +97,62 @@ export async function compareFiles (
   actualFile: string | Buffer,
   options: Options = {},
 ): Promise<CompareFilesResult> {
-  let directory: ResultDirectory | undefined;
-  let release: (() => void) | undefined;
-  let keepResults: KeepResults = 'all';
+  let runDir: string | undefined;
+  const keepResults = options.keepResults ?? 'failed';
 
   try {
-    try {
-      Directory.validateFilePath(expectedFile);
-      Directory.validateFilePath(actualFile);
-      Compare.validateOptions(options.compare);
-      validateKeepResults(options.keepResults);
+    Directory.validateFilePath(expectedFile);
+    Directory.validateFilePath(actualFile);
+    Compare.validateOptions(options.compare);
+    validateKeepResults(options.keepResults);
+    validateDetailedResult(options.detailedResult);
 
-      directory = Directory.resolveResultDirectory(options.resultDir);
-      keepResults = options.keepResults ?? (directory.generated ? 'failed' : 'all');
-      release = ResultLock.acquire(directory.path);
+    runDir = Directory.createRunDirectory(options.resultDir);
 
-      const [expectedTotalPages, actualTotalPages] = await Promise.all([
-        Render.getTotalPages(expectedFile, 'expected'),
-        Render.getTotalPages(actualFile, 'actual'),
-      ]);
+    const [expectedTotalPages, actualTotalPages] = await Promise.all([
+      Render.getTotalPages(expectedFile, 'expected'),
+      Render.getTotalPages(actualFile, 'actual'),
+    ]);
 
-      const { expected, actual, difference } = Directory.createResultDirectories(directory.path);
+    const { expected, actual, difference } = Directory.createResultDirectories(runDir);
 
-      await Promise.all([
-        Render.pdfToImages(expectedFile, Directory.addPrefixToPath(expected), options.render),
-        Render.pdfToImages(actualFile, Directory.addPrefixToPath(actual), options.render),
-      ]);
+    await Promise.all([
+      Render.pdfToImages(expectedFile, Directory.addPrefixToPath(expected), options.render),
+      Render.pdfToImages(actualFile, Directory.addPrefixToPath(actual), options.render),
+    ]);
 
-      const result = await Compare.compareAllPageImages(
-        expectedTotalPages,
-        actualTotalPages,
-        expected,
-        actual,
-        difference,
-        options.compare,
-      );
+    const result = await Compare.compareAllPageImages(
+      expectedTotalPages,
+      actualTotalPages,
+      expected,
+      actual,
+      difference,
+      options.compare,
+    );
 
-      if (shouldKeep(keepResults, result.passed)) {
-        return { ...result, resultDir: directory.path };
-      }
+    const keep = shouldKeep(keepResults, result.passed);
 
-      Directory.removeResults(directory);
-
-      return {
-        ...result,
-        pages: result.pages.map(({ diffImagePath: _removed, ...page }) => page),
-        resultDir: directory.path,
-      };
-    } catch (error) {
-      if (directory && release && !shouldKeep(keepResults, false)) {
-        Directory.removeResults(directory);
-      }
-
-      return {
-        passed: false,
-        message: 'Failed to compare the files',
-        differentPages: [],
-        pages: [],
-        excludedPages: options.compare?.excludedPages ?? [],
-        resultDir: directory?.path,
-        error: error instanceof Error ? error : new Error(String(error)),
-      };
+    if (!keep) {
+      Directory.removeRunDirectory(runDir);
     }
-  } finally {
-    release?.();
+
+    return {
+      ...withPages(result, options.detailedResult, !keep),
+      resultDir: path.basename(runDir),
+    };
+  } catch (error) {
+    if (runDir && !shouldKeep(keepResults, false)) {
+      Directory.removeRunDirectory(runDir);
+    }
+
+    return {
+      passed: false,
+      message: 'Failed to compare the files',
+      differentPages: [],
+      ...(options.detailedResult ? { pages: [] } : {}),
+      excludedPages: options.compare?.excludedPages ?? [],
+      resultDir: runDir && path.basename(runDir),
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
   }
 }

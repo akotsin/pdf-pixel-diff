@@ -10,12 +10,6 @@ export type ResultFolder =
 
 const RESULT_FOLDERS: ResultFolder[] = ['expected', 'actual', 'difference'];
 
-export type ResultDirectory = {
-  path: string;
-  /** created by the package for this call (resultDir option not set) */
-  generated: boolean;
-};
-
 export class Directory {
   static validateFilePath (
     file: string | Buffer,
@@ -25,33 +19,25 @@ export class Directory {
     }
   }
 
-  /** Explicit dir is used as is; otherwise a unique `<cwd>/pdf-pixel-diff/<timestamp>-<random>` dir is created. */
-  static resolveResultDirectory (
-    resultDir?: string,
-  ): ResultDirectory {
-    if (resultDir !== undefined) {
-      return { path: path.resolve(resultDir), generated: false };
-    }
-
-    const baseDir = path.resolve(DEFAULT_RESULTS_BASE_DIR);
+  /** Every call gets its own `<resultDir>/<timestamp>-<random>` dir, so comparisons never share files. */
+  static createRunDirectory (
+    resultDir: string = DEFAULT_RESULTS_BASE_DIR,
+  ): string {
+    const baseDir = path.resolve(resultDir);
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
     fse.ensureDirSync(baseDir);
 
-    return {
-      path: fse.mkdtempSync(path.join(baseDir, `${timestamp}-`)),
-      generated: true,
-    };
+    return fse.mkdtempSync(path.join(baseDir, `${timestamp}-`));
   }
 
   static createResultDirectories (
-    resultsDir: string,
+    runDir: string,
   ): Record<ResultFolder, string> {
     const entries = RESULT_FOLDERS.map((folder) => {
-      const directoryPath = path.join(resultsDir, folder);
+      const directoryPath = path.join(runDir, folder);
 
       fse.ensureDirSync(directoryPath);
-      fse.emptyDirSync(directoryPath);
 
       return [folder, directoryPath];
     });
@@ -59,18 +45,10 @@ export class Directory {
     return Object.fromEntries(entries) as Record<ResultFolder, string>;
   }
 
-  /** A generated dir is removed entirely; in an explicit dir only the package's subfolders are removed. */
-  static removeResults (
-    directory: ResultDirectory,
+  static removeRunDirectory (
+    runDir: string,
   ): void {
-    if (directory.generated) {
-      fse.removeSync(directory.path);
-      return;
-    }
-
-    for (const folder of RESULT_FOLDERS) {
-      fse.removeSync(path.join(directory.path, folder));
-    }
+    fse.removeSync(runDir);
   }
 
   static addPrefixToPath (
