@@ -45,7 +45,10 @@
     "Comparison",
     "PDF Comparison",
     "PDF Difference",
-    "PDF Pixel Difference"
+    "PDF Pixel Difference",
+    "Playwright PDF Comparison",
+    "WebdriverIO PDF Comparison",
+    "Allure PDF Comparison"
   ],
   "license": "ISC",
   "description": "A library for comparing PDF files using pixel by pixel image comparison.",
