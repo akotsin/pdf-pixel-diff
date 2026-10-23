@@ -1,10 +1,10 @@
-
 import { Poppler } from 'node-poppler';
 
 const DEFAULT_DPI = 150;
 
 export type RenderOptions = {
   dpi?: number;
+  useCropBox?: boolean;
 };
 
 export class Render {
@@ -63,6 +63,7 @@ export class Render {
     await this.init().pdfToCairo(pdf, outPrefix, {
       pngFile: true,
       resolutionXYAxis: options.dpi || DEFAULT_DPI,
+      cropBox: options.useCropBox ?? false,
     });
   }
 }
