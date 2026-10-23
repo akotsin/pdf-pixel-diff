@@ -153,7 +153,7 @@ type CompareFilesResult = {
   /** one entry per page of the longer document; empty when `error` is set */
   /** only with `detailedResult: true`: one entry per page of the longer document; empty when `error` is set */
   pages?: PageResult[];
-  /** name of this call's run subfolder inside `resultDir`, e.g. '2026-10-23T14-31-59-309Z-FTgPX6' (not set when validation failed before it was created) */
+  /** absolute path of this call's run subfolder, e.g. '/repo/pdf-pixel-diff/2026-10-23T14-31-59-309Z-FTgPX6' (not set when validation failed before it was created) */
   resultDir?: string;
   error?: Error;
 }
@@ -235,20 +235,19 @@ console.log(result);
 
 Every call writes into its own new subfolder of `resultDir`, created atomically (`mkdtemp`),
 so concurrent calls never share files, even with the same `resultDir` and from different processes.
-Diff images of a call are in `<resultDir>/<result.resultDir>/difference/` (with `detailedResult: true` also in `result.pages[].diffImagePath`).
+Diff images of a call are in `path.join(result.resultDir, 'difference')` (with `detailedResult: true` also in `result.pages[].diffImagePath`).
 
 A readable `resultDir` per test still helps to find results later. With Playwright:
 
 ```ts
 test('budget book PDF', async ({}, testInfo) => {
-  const resultDir = testInfo.outputPath('pdf-diff');
   const result = await compareFiles(expectedPath, actualPath, {
-    resultDir,
+    resultDir: testInfo.outputPath('pdf-diff'),
     compare: { combineImages: true },
   });
 
   if (!result.passed && result.resultDir) {
-    const differenceDir = path.join(resultDir, result.resultDir, 'difference');
+    const differenceDir = path.join(result.resultDir, 'difference');
 
     for (const file of fs.readdirSync(differenceDir)) {
       await testInfo.attach(file, { path: path.join(differenceDir, file), contentType: 'image/png' });
@@ -267,7 +266,7 @@ are never touched. With the default `keepResults: 'failed'` the run subfolder is
 
 ```
 resultDir/
-  2026-10-23T13-35-40-027Z-kVfTd2/   # one run, its name = result.resultDir
+  2026-10-23T13-35-40-027Z-kVfTd2/   # one run = result.resultDir (absolute path)
     expected/    # every rendered expected page: expected-1.png ... (expected-01.png for 10-99 pages)
     actual/      # every rendered actual page: actual-1.png ...
     difference/  # only failed pages: difference-3.png ... (combined image when combineImages is true)
@@ -277,7 +276,8 @@ Run subfolders sort by time. Failed runs accumulate until you delete them (e.g. 
 
 Page numbers in file names are zero-padded: rendered pages to the page count of their own document (Poppler naming),
 diff images to the number of compared pages, i.e. `min(expectedPages, actualPages)`.
-The run folder name is returned in `result.resultDir`, so a call's diff images are `<resultDir>/<result.resultDir>/difference/*.png`.
+`result.resultDir` is the absolute path of the run folder, so a call's diff images are `path.join(result.resultDir, 'difference')`.
+For short log output use `path.relative(process.cwd(), result.resultDir)` or `path.basename(result.resultDir)`.
 
 Notes:
 
@@ -290,7 +290,7 @@ Notes:
 | 1.x | 2.0 |
 | --- | --- |
 | Pages with different sizes (e.g. changed orientation) returned `error: Images must have the same dimensions` | The page gets status `size-mismatch` and is listed in `differentPages`; no `error` |
-| Results were written directly into `resultDir` (`resultDir/difference/...`) and overwritten by the next call | Every call writes into a new subfolder `resultDir/<timestamp>-<random>/difference/...`; read them from `<resultDir>/<result.resultDir>/difference/` |
+| Results were written directly into `resultDir` (`resultDir/difference/...`) and overwritten by the next call | Every call writes into a new subfolder `resultDir/<timestamp>-<random>/difference/...`; read them from `path.join(result.resultDir, 'difference')` |
 | Concurrent calls with the same `resultDir` silently overwrote each other | Impossible: each call has its own subfolder |
 | Results were always kept | Removed when the documents are the same (`keepResults: 'failed'`; `'all'` keeps everything) |
 | Invalid options (masks with `x1 <= x0`, non-integer `pageNumber`, `threshold` outside 0–1, ...) were ignored | Returned as `error` before rendering |

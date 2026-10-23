@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Directory } from './directory/directory';
 import {
   Render,
@@ -138,7 +137,7 @@ export async function compareFiles (
 
     return {
       ...withPages(result, options.detailedResult, !keep),
-      resultDir: path.basename(runDir),
+      resultDir: runDir,
     };
   } catch (error) {
     if (runDir && !shouldKeep(keepResults, false)) {
@@ -151,7 +150,7 @@ export async function compareFiles (
       differentPages: [],
       ...(options.detailedResult ? { pages: [] } : {}),
       excludedPages: options.compare?.excludedPages ?? [],
-      resultDir: runDir && path.basename(runDir),
+      resultDir: runDir,
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }
