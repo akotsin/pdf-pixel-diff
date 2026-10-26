@@ -34,6 +34,16 @@ export class Render {
     return this.poppler;
   }
 
+  static validateOptions (
+    options: RenderOptions = {},
+  ): void {
+    const { dpi } = options;
+
+    if (dpi !== undefined && (typeof dpi !== 'number' || !Number.isFinite(dpi) || dpi <= 0)) {
+      throw new Error(`Invalid render.dpi: ${String(dpi)}. Expected a positive number`);
+    }
+  }
+
   static async getTotalPages (
     pdf: string | Buffer,
     fileName: string,
@@ -62,7 +72,7 @@ export class Render {
   ): Promise<void> {
     await this.init().pdfToCairo(pdf, outPrefix, {
       pngFile: true,
-      resolutionXYAxis: options.dpi || DEFAULT_DPI,
+      resolutionXYAxis: options.dpi ?? DEFAULT_DPI,
       cropBox: options.useCropBox ?? false,
     });
   }

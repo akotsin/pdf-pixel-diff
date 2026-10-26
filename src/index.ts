@@ -45,6 +45,7 @@ export type Options = {
 export type CompareFilesResult = Omit<CompareResult, 'pages'> & {
   /** per-page details, only with `detailedResult: true` */
   pages?: PageResult[];
+  /** absolute path of the run folder; set only when the folder is kept on disk */
   resultDir?: string;
   error?: Error;
 };
@@ -54,6 +55,14 @@ function validateKeepResults (
 ): void {
   if (keepResults !== undefined && !KEEP_RESULTS.includes(keepResults)) {
     throw new Error(`Invalid keepResults: ${String(keepResults)}. Expected one of ${KEEP_RESULTS.join(', ')}`);
+  }
+}
+
+function validateResultDir (
+  resultDir: string | undefined,
+): void {
+  if (resultDir !== undefined && (typeof resultDir !== 'string' || resultDir.trim() === '')) {
+    throw new Error(`Invalid resultDir: ${JSON.stringify(resultDir)}. Expected a non-empty path`);
   }
 }
 
@@ -103,6 +112,8 @@ export async function compareFiles (
     Directory.validateFilePath(expectedFile);
     Directory.validateFilePath(actualFile);
     Compare.validateOptions(options.compare);
+    Render.validateOptions(options.render);
+    validateResultDir(options.resultDir);
     validateKeepResults(options.keepResults);
     validateDetailedResult(options.detailedResult);
 
@@ -137,10 +148,12 @@ export async function compareFiles (
 
     return {
       ...withPages(result, options.detailedResult, !keep),
-      resultDir: runDir,
+      ...(keep ? { resultDir: runDir } : {}),
     };
   } catch (error) {
-    if (runDir && !shouldKeep(keepResults, false)) {
+    const keep = shouldKeep(keepResults, false);
+
+    if (runDir && !keep) {
       Directory.removeRunDirectory(runDir);
     }
 
@@ -150,7 +163,7 @@ export async function compareFiles (
       differentPages: [],
       ...(options.detailedResult ? { pages: [] } : {}),
       excludedPages: options.compare?.excludedPages ?? [],
-      resultDir: runDir,
+      ...(runDir && keep ? { resultDir: runDir } : {}),
       error: error instanceof Error ? error : new Error(String(error)),
     };
   }

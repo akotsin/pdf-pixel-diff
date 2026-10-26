@@ -45,10 +45,15 @@ export class Directory {
     return Object.fromEntries(entries) as Record<ResultFolder, string>;
   }
 
+  // Best effort: a cleanup failure must not turn a finished comparison into an exception.
   static removeRunDirectory (
     runDir: string,
   ): void {
-    fse.removeSync(runDir);
+    try {
+      fse.removeSync(runDir);
+    } catch {
+      // ignore
+    }
   }
 
   static addPrefixToPath (

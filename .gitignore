@@ -12,3 +12,6 @@ dist/
 
 # Test directories
 assets/
+
+# macOS
+.DS_Store

@@ -153,7 +153,7 @@ type CompareFilesResult = {
   /** one entry per page of the longer document; empty when `error` is set */
   /** only with `detailedResult: true`: one entry per page of the longer document; empty when `error` is set */
   pages?: PageResult[];
-  /** absolute path of this call's run subfolder, e.g. '/repo/pdf-pixel-diff/2026-10-23T14-31-59-309Z-FTgPX6' (not set when validation failed before it was created) */
+  /** absolute path of this call's run subfolder, e.g. '/repo/pdf-pixel-diff/2026-10-23T14-31-59-309Z-FTgPX6'; set only when the folder is kept on disk (see `keepResults`) */
   resultDir?: string;
   error?: Error;
 }
@@ -178,7 +178,8 @@ type PageResult = {
 
 Options are validated before rendering. Invalid values produce an `error` instead of being silently ignored:
 `threshold` outside 0–1 or `NaN`, `excludedPages` that are not positive integers,
-masks with a non-integer `pageNumber` or `x1 <= x0` / `y1 <= y0`, unknown `combineLabels` keys or labels longer than 100 characters.
+masks with a non-integer `pageNumber` or `x1 <= x0` / `y1 <= y0`, unknown `combineLabels` keys or labels longer than 100 characters,
+`render.dpi` that is not a positive number, an empty `resultDir`.
 
 ## Usage
 
@@ -300,6 +301,28 @@ Notes:
 | `message: 'Documents are different: baseline N pages, actual M pages'` | `'Documents are different: expected N pages, actual M pages'` |
 
 Unchanged: other `message` texts, `passed`, `differentPages`, `actual/` and `difference/` file names inside a run folder.
+
+## Performance and memory
+
+Memory use stays low and does not grow with the document size: pages are rendered to PNG files on disk
+and compared one page at a time, so only the current page is held in memory
+(expected, actual and diff bitmaps, about 25 MB for a US Letter page at 150 DPI).
+
+Measured peak memory of the Node process (Linux arm64, Node 22; ~100 MB of it is the baseline of the Node process and the TypeScript loader used for the measurement):
+
+| Comparison | Time | Peak RSS |
+| --- | --- | --- |
+| 60 + 60 pages, 150 DPI | ~5 s | ~270 MB |
+| 60 + 60 pages, 300 DPI | ~18 s | ~340 MB |
+| 220 + 293 pages (real budget document), 150 DPI, combined images | ~100 s | ~340 MB (+ ~86 MB for Poppler processes while rendering) |
+| 8 comparisons in a row in one process | — | stable ~247 MB, no growth |
+
+Memory grows with the number of comparisons running **at the same time in one process**
+(about +40 MB each: ~400 MB for 4, ~530 MB for 8), not with the number of pages.
+Limit concurrency if you start many comparisons with `Promise.all`.
+
+Disk: every rendered page is stored as PNG (~70 KB per page at 150 DPI); a 513-page run takes ~160 MB.
+Run folders of passed comparisons are removed by default (`keepResults: 'failed'`).
 
 ## Troubleshooting
 
