@@ -1,11 +1,11 @@
 {
   "name": "pdf-pixel-diff",
-  "version": "1.0.4",
+  "version": "2.0.0",
   "type": "module",
   "main": "./dist/index.cjs",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsup",
+    "prepublishOnly": "tsup",
     "typescript:check": "tsc --noEmit",
     "eslint:check": "eslint .",
     "eslint:fix": "eslint . --fix",
@@ -45,7 +45,10 @@
     "Comparison",
     "PDF Comparison",
     "PDF Difference",
-    "PDF Pixel Difference"
+    "PDF Pixel Difference",
+    "Playwright PDF Comparison",
+    "WebdriverIO PDF Comparison",
+    "Allure PDF Comparison"
   ],
   "license": "ISC",
   "description": "A library for comparing PDF files using pixel by pixel image comparison.",
@@ -55,18 +58,18 @@
     "@types/node": "^25.2.3",
     "eslint": "^9.39.2",
     "globals": "^17.3.0",
-    "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.55.0"
   },
   "dependencies": {
     "fs-extra": "^11.3.3",
-    "node-poppler": "^9.1.1",
-    "pixelmatch": "^7.1.0",
-    "sharp": "^0.34.5"
+    "node-poppler": "^11.0.0",
+    "pixelmatch": "^8.0.0",
+    "sharp": "^0.35.5"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   }
 }

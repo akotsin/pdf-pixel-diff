@@ -1,15 +1,14 @@
 import fse from 'fs-extra';
 import path from 'node:path';
 
-const DEFAULT_RESULTS_DIR = path.resolve(
-  process.cwd(),
-  'pdf-pixel-diff',
-);
+const DEFAULT_RESULTS_BASE_DIR = 'pdf-pixel-diff';
 
 export type ResultFolder =
-  | 'baseline'
+  | 'expected'
   | 'actual'
   | 'difference';
+
+const RESULT_FOLDERS: ResultFolder[] = ['expected', 'actual', 'difference'];
 
 export class Directory {
   static validateFilePath (
@@ -20,29 +19,41 @@ export class Directory {
     }
   }
 
-  private static validateSpecificDirectory (
-    resultsDir: string,
-    folder: ResultFolder,
+  /** Every call gets its own `<resultDir>/<timestamp>-<random>` dir, so comparisons never share files. */
+  static createRunDirectory (
+    resultDir: string = DEFAULT_RESULTS_BASE_DIR,
   ): string {
-    const directoryPath = path.join(
-      resultsDir,
-      folder,
-    );
+    const baseDir = path.resolve(resultDir);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
-    fse.ensureDirSync(directoryPath);
-    fse.emptyDirSync(directoryPath);
+    fse.ensureDirSync(baseDir);
 
-    return directoryPath;
+    return fse.mkdtempSync(path.join(baseDir, `${timestamp}-`));
   }
 
   static createResultDirectories (
-    resultsDir: string = DEFAULT_RESULTS_DIR,
+    runDir: string,
   ): Record<ResultFolder, string> {
-    return {
-      baseline: this.validateSpecificDirectory(resultsDir, 'baseline'),
-      actual: this.validateSpecificDirectory(resultsDir, 'actual'),
-      difference: this.validateSpecificDirectory(resultsDir, 'difference'),
-    };
+    const entries = RESULT_FOLDERS.map((folder) => {
+      const directoryPath = path.join(runDir, folder);
+
+      fse.ensureDirSync(directoryPath);
+
+      return [folder, directoryPath];
+    });
+
+    return Object.fromEntries(entries) as Record<ResultFolder, string>;
+  }
+
+  // Best effort: a cleanup failure must not turn a finished comparison into an exception.
+  static removeRunDirectory (
+    runDir: string,
+  ): void {
+    try {
+      fse.removeSync(runDir);
+    } catch {
+      // ignore
+    }
   }
 
   static addPrefixToPath (
@@ -56,9 +67,20 @@ export class Directory {
     );
   }
 
-  static showAllFilesInDirectory (
+  /** Maps 1-based page numbers to file names produced by pdftocairo (`<prefix>-<page>.png`). */
+  static mapPageImages (
     directoryPath: string,
-  ): string[] {
-    return fse.readdirSync(directoryPath);
+  ): Map<number, string> {
+    const images = new Map<number, string>();
+
+    for (const file of fse.readdirSync(directoryPath)) {
+      const match = /-(\d+)\.png$/.exec(file);
+
+      if (match?.[1]) {
+        images.set(Number(match[1]), file);
+      }
+    }
+
+    return images;
   }
 }
