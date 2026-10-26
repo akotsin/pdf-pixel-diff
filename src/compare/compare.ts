@@ -1,5 +1,8 @@
 import path from 'node:path';
-import sharp from 'sharp';
+import sharp, {
+  type OverlayOptions,
+  type Sharp,
+} from 'sharp';
 import { Directory } from '../directory/directory';
 
 /**
@@ -366,7 +369,7 @@ export class Compare {
     diff: RawImage,
     layout: CombineLayout,
     labels: CombineLabels = {},
-  ): Promise<sharp.Sharp> {
+  ): Promise<Sharp> {
     const { width, height } = expected;
 
     const vertical = layout === 'vertical' ||
@@ -382,7 +385,7 @@ export class Compare {
       [diff, texts?.difference],
     ];
 
-    const composites: sharp.OverlayOptions[] = [];
+    const composites: OverlayOptions[] = [];
 
     for (const [i, [image, text]] of cells.entries()) {
       const left = vertical ? 0 : i * (width + SEPARATOR_SIZE);

@@ -1,11 +1,11 @@
 # pdf-pixel-diff
 
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-blue.svg)](https://www.typescriptlang.org/)
 [![Module](https://img.shields.io/badge/Module-ESM%20%2B%20CJS-purple.svg)](https://nodejs.org/api/packages.html#conditional-exports)
-[![node-poppler](https://img.shields.io/badge/node--poppler-9.1.1-brightgreen.svg)](https://www.npmjs.com/package/node-poppler)
-[![sharp](https://img.shields.io/badge/sharp-0.34.5-brightgreen.svg)](https://www.npmjs.com/package/sharp)
-[![pixelmatch](https://img.shields.io/badge/pixelmatch-7.1.0-brightgreen.svg)](https://www.npmjs.com/package/pixelmatch)
+[![node-poppler](https://img.shields.io/badge/node--poppler-11.0.0-brightgreen.svg)](https://www.npmjs.com/package/node-poppler)
+[![sharp](https://img.shields.io/badge/sharp-0.35.5-brightgreen.svg)](https://www.npmjs.com/package/sharp)
+[![pixelmatch](https://img.shields.io/badge/pixelmatch-8.0.0-brightgreen.svg)](https://www.npmjs.com/package/pixelmatch)
 
 Pixel-by-pixel PDF comparison for Node.js. Renders PDFs to PNGs (Poppler) and compares page images with `pixelmatch`, producing per-page diff images.
 
@@ -290,6 +290,8 @@ Notes:
 
 | 1.x | 2.0 |
 | --- | --- |
+| Node.js >= 20, `node-poppler` 9 | Node.js >= 22, `node-poppler` 11 (rendering output is identical) |
+| `pixelmatch` 7 (YIQ color distance), `sharp` 0.34 | `pixelmatch` 8 (OKLab color distance, closer to human perception), `sharp` 0.35. `threshold` keeps its 0–1 scale and 0.1 default, but per-page diff pixel counts can differ slightly; on the tested documents the same pages pass and fail |
 | Pages with different sizes (e.g. changed orientation) returned `error: Images must have the same dimensions` | The page gets status `size-mismatch` and is listed in `differentPages`; no `error` |
 | Results were written directly into `resultDir` (`resultDir/difference/...`) and overwritten by the next call | Every call writes into a new subfolder `resultDir/<timestamp>-<random>/difference/...`; read them from `path.join(result.resultDir, 'difference')` |
 | Concurrent calls with the same `resultDir` silently overwrote each other | Impossible: each call has its own subfolder |
