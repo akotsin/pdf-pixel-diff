@@ -85,6 +85,14 @@ type CompareOptions = {
    */
   threshold?: number;
 
+  /**
+   * share of differing pixels a page may have and still count as equal: any number from 0 to 1
+   * (e.g. 0.0001 = 0.01% of the page, ~210 px of a US Letter page at 150 DPI)
+   * 0 = any differing pixel fails the page (default: 0)
+   * pages with status 'size-mismatch' always fail
+   */
+  maxDiffRatio?: number;
+
   /** include anti-aliased pixels (default: false) */
   includeAA?: boolean;
 
@@ -161,6 +169,7 @@ type CompareFilesResult = {
 type PageResult = {
   page: number;
   /**
+   * - 'equal': `diffRatio` is not greater than `compare.maxDiffRatio` (`diffPixels` can be > 0)
    * - 'size-mismatch': rendered pages have different dimensions (e.g. orientation changed)
    * - 'missing': page exists only in one of the documents
    */
@@ -177,7 +186,7 @@ type PageResult = {
 `compareFiles()` does **not** throw: it catches errors and returns `{ passed: false, message: 'Failed to compare the files', error }`.
 
 Options are validated before rendering. Invalid values produce an `error` instead of being silently ignored:
-`threshold` outside 0–1 or `NaN`, `excludedPages` that are not positive integers,
+`threshold` or `maxDiffRatio` outside 0–1 or `NaN`, `excludedPages` that are not positive integers,
 masks with a non-integer `pageNumber` or `x1 <= x0` / `y1 <= y0`, unknown `combineLabels` keys or labels longer than 100 characters,
 `render.dpi` that is not a positive number, an empty `resultDir`.
 
@@ -357,18 +366,26 @@ Both images are padded to a common canvas, so the diff / combined image shows wh
 - Changed page orientation or page size
 - Different crop boxes (try `render.useCropBox: true`)
 
+### Pages fail on a few pixels at the edges of text or lines
+
+Two renders of the same content can differ by single pixels on glyph or line edges (white in one image, gray in the other).
+Such a pixel has a large color distance, so raising `threshold` does not hide it, and `pixelmatch` does not always classify it as anti-aliasing.
+Allow a small share of differing pixels per page instead, e.g. `compare.maxDiffRatio: 0.0001`.
+Check `diffRatio` of real changes with `detailedResult: true` first: the ratio is a share of the whole page, so a one-digit change can be small too.
+
 ### I expected a diff image but none was produced
 
 Diff images are only written for pages with status `different` or `size-mismatch`. Check:
 
 - `result.pages` with `detailedResult: true` (status and `diffPixels` per page)
 - `compare.excludedPages`
+- `compare.maxDiffRatio`
 - `result.error`
 
 ## Key Features
 
 - PDF to PNG rendering via Poppler
-- Page-by-page pixel comparison with configurable threshold and AA handling
+- Page-by-page pixel comparison with configurable threshold, per-page diff tolerance and AA handling
 - Mixed portrait / landscape documents, including pages whose orientation changed
 - Per-page results with diff pixel counts and diff image paths
 - Rectangular masks to ignore dynamic regions, optionally per orientation

@@ -23,6 +23,7 @@ async function getPixelmatch (): Promise<PixelmatchModule['default']> {
 }
 
 const DEFAULT_THRESHOLD = 0.1;
+const DEFAULT_MAX_DIFF_RATIO = 0;
 const DEFAULT_INCLUDE_AA = false;
 const DEFAULT_COMBINE_LAYOUT: CombineLayout = 'auto';
 const SEPARATOR_SIZE = 10;
@@ -68,6 +69,7 @@ export type CombineLabels = false | CombineLabelTexts;
 
 export type CompareOptions = {
   threshold?: number;
+  maxDiffRatio?: number;
   includeAA?: boolean;
   combineImages?: boolean;
   combineLayout?: CombineLayout;
@@ -121,6 +123,7 @@ export class Compare {
     options: CompareOptions = {},
   ): void {
     this.validateRange('threshold', options.threshold, 0, 1);
+    this.validateRange('maxDiffRatio', options.maxDiffRatio, 0, 1);
     this.validateExcludedPages(options.excludedPages);
     this.validateMasks(options.masks);
     this.validateLabels(options.combineLabels);
@@ -342,7 +345,7 @@ export class Compare {
       actualSize,
     };
 
-    if (!sizeMismatch && diffPixels === 0) {
+    if (!sizeMismatch && diffRatio <= (options.maxDiffRatio ?? DEFAULT_MAX_DIFF_RATIO)) {
       return result;
     }
 
